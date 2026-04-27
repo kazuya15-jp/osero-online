@@ -112,6 +112,25 @@ button.primary {
 
 button.primary:hover { background: #16a34a; }
 
+button.danger {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.5);
+  color: #fecaca;
+}
+
+button.danger:hover { background: rgba(239, 68, 68, 0.35); }
+
+button.waiting {
+  background: rgba(253, 224, 71, 0.2);
+  border-color: rgba(253, 224, 71, 0.5);
+  color: #fde047;
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 button.small {
   padding: 4px 10px;
   font-size: 0.8rem;

@@ -107,6 +107,9 @@ function createRoom() {
     lastMove: null,
     passed: false,
     winner: null,
+    endReason: null,
+    resignedBy: null,
+    rematchRequests: { [BLACK]: false, [WHITE]: false },
   };
   rooms.set(code, room);
   return room;
@@ -124,6 +127,9 @@ function publicRoomState(room) {
     lastMove: room.lastMove,
     counts,
     winner: room.winner,
+    endReason: room.endReason,
+    resignedBy: room.resignedBy,
+    rematchRequests: room.rematchRequests,
     players: {
       [BLACK]: room.players[BLACK] ? { name: room.players[BLACK].name, connected: room.players[BLACK].connected } : null,
       [WHITE]: room.players[WHITE] ? { name: room.players[WHITE].name, connected: room.players[WHITE].connected } : null,
@@ -210,15 +216,39 @@ io.on('connection', (socket) => {
     broadcast(room);
   });
 
+  socket.on('resign', () => {
+    const room = rooms.get(joinedRoom);
+    if (!room || !myColor || room.status !== 'playing') return;
+    room.status = 'finished';
+    room.winner = opponent(myColor);
+    room.endReason = 'resign';
+    room.resignedBy = myColor;
+    broadcast(room);
+  });
+
   socket.on('rematch', () => {
     const room = rooms.get(joinedRoom);
-    if (!room || room.status !== 'finished') return;
-    room.board = createBoard();
-    room.turn = BLACK;
-    room.lastMove = null;
-    room.winner = null;
-    room.passed = false;
-    room.status = (room.players[BLACK] && room.players[WHITE]) ? 'playing' : 'waiting';
+    if (!room || !myColor || room.status !== 'finished') return;
+    if (!room.players[BLACK] || !room.players[WHITE]) return;
+    room.rematchRequests[myColor] = true;
+    if (room.rematchRequests[BLACK] && room.rematchRequests[WHITE]) {
+      room.board = createBoard();
+      room.turn = BLACK;
+      room.lastMove = null;
+      room.winner = null;
+      room.passed = false;
+      room.endReason = null;
+      room.resignedBy = null;
+      room.rematchRequests = { [BLACK]: false, [WHITE]: false };
+      room.status = 'playing';
+    }
+    broadcast(room);
+  });
+
+  socket.on('cancelRematch', () => {
+    const room = rooms.get(joinedRoom);
+    if (!room || !myColor || room.status !== 'finished') return;
+    room.rematchRequests[myColor] = false;
     broadcast(room);
   });
 

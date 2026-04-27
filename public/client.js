@@ -18,6 +18,7 @@ const nameWhiteEl = document.getElementById('nameWhite');
 const scoreBlackEl = document.getElementById('scoreBlack');
 const scoreWhiteEl = document.getElementById('scoreWhite');
 const rematchBtn = document.getElementById('rematchBtn');
+const resignBtn = document.getElementById('resignBtn');
 const leaveBtn = document.getElementById('leaveBtn');
 const chatLog = document.getElementById('chatLog');
 const chatForm = document.getElementById('chatForm');
@@ -28,20 +29,63 @@ let myColor = null;
 let currentState = null;
 let prevState = null;
 
+const BGM_PLAYLIST = [
+  'sounds/bgm1.mp3',
+  'sounds/bgm2.mp3',
+  'sounds/bgm3.mp3',
+  'sounds/bgm4.mp3',
+  'sounds/bgm5.mp3',
+];
+
 const audio = {
-  bgm: new Audio('sounds/bgm.mp3'),
+  bgm: new Audio(),
   place: new Audio('sounds/place.mp3'),
   turn: new Audio('sounds/turn.mp3'),
   win: new Audio('sounds/win.mp3'),
   lose: new Audio('sounds/lose.mp3'),
 };
-audio.bgm.loop = true;
 audio.bgm.volume = 0.3;
 audio.place.volume = 0.6;
 audio.turn.volume = 0.5;
 audio.win.volume = 0.6;
 audio.lose.volume = 0.6;
 Object.values(audio).forEach(a => { a.preload = 'auto'; });
+
+let bgmIndex = 0;
+let bgmFailCount = 0;
+
+function loadBgmTrack(index) {
+  bgmIndex = ((index % BGM_PLAYLIST.length) + BGM_PLAYLIST.length) % BGM_PLAYLIST.length;
+  audio.bgm.src = BGM_PLAYLIST[bgmIndex];
+}
+
+function playNextBgm() {
+  bgmFailCount++;
+  if (bgmFailCount >= BGM_PLAYLIST.length) {
+    bgmFailCount = 0;
+    return;
+  }
+  loadBgmTrack(bgmIndex + 1);
+  if (audioEnabled) {
+    const p = audio.bgm.play();
+    if (p && p.catch) p.catch(() => {});
+  }
+}
+
+audio.bgm.addEventListener('ended', () => {
+  bgmFailCount = 0;
+  loadBgmTrack(bgmIndex + 1);
+  if (audioEnabled) {
+    const p = audio.bgm.play();
+    if (p && p.catch) p.catch(() => {});
+  }
+});
+
+audio.bgm.addEventListener('error', () => {
+  playNextBgm();
+});
+
+loadBgmTrack(0);
 
 let audioEnabled = localStorage.getItem('osero.audio') !== 'off';
 
@@ -65,12 +109,22 @@ function playSE(name) {
 
 function startBGM() {
   if (!audioEnabled) return;
+  bgmFailCount = 0;
   const p = audio.bgm.play();
   if (p && p.catch) p.catch(() => {});
 }
 
 function stopBGM() {
   audio.bgm.pause();
+}
+
+function skipBGM() {
+  bgmFailCount = 0;
+  loadBgmTrack(bgmIndex + 1);
+  if (audioEnabled) {
+    const p = audio.bgm.play();
+    if (p && p.catch) p.catch(() => {});
+  }
 }
 
 if (audioToggleBtn) {
@@ -80,6 +134,14 @@ if (audioToggleBtn) {
     updateAudioButton();
     if (audioEnabled) startBGM();
     else stopBGM();
+  });
+}
+
+const skipBgmBtn = document.getElementById('skipBgmBtn');
+if (skipBgmBtn) {
+  skipBgmBtn.addEventListener('click', () => {
+    if (!audioEnabled) return;
+    skipBGM();
   });
 }
 
@@ -169,7 +231,19 @@ leaveBtn.addEventListener('click', () => {
 });
 
 rematchBtn.addEventListener('click', () => {
-  socket.emit('rematch');
+  if (!currentState) return;
+  const myReq = currentState.rematchRequests?.[myColor];
+  if (myReq) {
+    socket.emit('cancelRematch');
+  } else {
+    socket.emit('rematch');
+  }
+});
+
+resignBtn.addEventListener('click', () => {
+  if (!currentState || currentState.status !== 'playing') return;
+  if (!confirm('本当に降参しますか？')) return;
+  socket.emit('resign');
 });
 
 chatForm.addEventListener('submit', (e) => {
@@ -245,6 +319,7 @@ function render(state) {
   if (state.status === 'waiting') {
     statusEl.textContent = '相手の参加を待っています…';
     rematchBtn.classList.add('hidden');
+    resignBtn.classList.add('hidden');
   } else if (state.status === 'playing') {
     const turnName = state.players[state.turn]?.name || (state.turn === 'B' ? '黒' : '白');
     if (myTurn) {
@@ -253,15 +328,40 @@ function render(state) {
       statusEl.textContent = `${turnName} の番`;
     }
     rematchBtn.classList.add('hidden');
+    resignBtn.classList.remove('hidden');
   } else if (state.status === 'finished') {
-    if (state.winner === 'draw') {
+    const winnerName = state.winner && state.winner !== 'draw'
+      ? (state.players[state.winner]?.name || (state.winner === 'B' ? '黒' : '白'))
+      : null;
+    const won = state.winner === myColor;
+    if (state.endReason === 'resign') {
+      const resignedName = state.players[state.resignedBy]?.name || (state.resignedBy === 'B' ? '黒' : '白');
+      if (state.resignedBy === myColor) {
+        statusEl.textContent = `😢 降参しました（勝者: ${winnerName}）`;
+      } else {
+        statusEl.textContent = `🎉 ${resignedName} が降参！あなたの勝ち`;
+      }
+    } else if (state.winner === 'draw') {
       statusEl.textContent = '引き分け！';
     } else {
-      const winnerName = state.players[state.winner]?.name || (state.winner === 'B' ? '黒' : '白');
-      const won = state.winner === myColor;
       statusEl.textContent = won ? `🎉 勝ち！（${winnerName}）` : `😢 負け…（勝者: ${winnerName}）`;
     }
+    resignBtn.classList.add('hidden');
     rematchBtn.classList.remove('hidden');
+
+    const myReq = state.rematchRequests?.[myColor];
+    const oppReq = state.rematchRequests?.[myColor === 'B' ? 'W' : 'B'];
+    rematchBtn.classList.remove('waiting');
+    if (myReq && !oppReq) {
+      rematchBtn.textContent = '再戦希望中… (取消)';
+      rematchBtn.classList.add('waiting');
+    } else if (!myReq && oppReq) {
+      const oppName = state.players[myColor === 'B' ? 'W' : 'B']?.name || '相手';
+      rematchBtn.textContent = `${oppName} が再戦希望！同意する`;
+      rematchBtn.classList.add('waiting');
+    } else {
+      rematchBtn.textContent = 'もう一度';
+    }
   }
 }
 
