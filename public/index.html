@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>オンライン オセロ</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="app">
+    <header>
+      <h1>オンライン オセロ</h1>
+    </header>
+
+    <section id="lobby" class="card">
+      <div class="row">
+        <label>ニックネーム</label>
+        <input id="nameInput" type="text" maxlength="20" placeholder="あなたの名前" />
+      </div>
+      <div class="actions">
+        <button id="createBtn" class="primary">ルームを作成</button>
+      </div>
+      <div class="divider"><span>または</span></div>
+      <div class="row">
+        <label>ルームコード</label>
+        <input id="codeInput" type="text" maxlength="5" placeholder="例: ABCDE" />
+      </div>
+      <div class="actions">
+        <button id="joinBtn">ルームに参加</button>
+      </div>
+      <p id="lobbyError" class="error"></p>
+    </section>
+
+    <section id="game" class="hidden">
+      <div class="game-header">
+        <div class="room-info">
+          <div>ルーム: <strong id="roomCode"></strong>
+            <button id="copyBtn" class="small">コピー</button>
+          </div>
+          <div id="status" class="status"></div>
+        </div>
+        <div class="scoreboard">
+          <div class="score black" id="scoreBlack">
+            <span class="disc-mini black"></span>
+            <span class="player-name" id="nameBlack">—</span>
+            <span class="score-num" id="countBlack">2</span>
+          </div>
+          <div class="score white" id="scoreWhite">
+            <span class="disc-mini white"></span>
+            <span class="player-name" id="nameWhite">—</span>
+            <span class="score-num" id="countWhite">2</span>
+          </div>
+        </div>
+      </div>
+
+      <div id="board" class="board"></div>
+
+      <div class="game-actions">
+        <button id="rematchBtn" class="hidden">もう一度</button>
+        <button id="leaveBtn">退室</button>
+      </div>
+
+      <div id="chatBox" class="chat">
+        <div id="chatLog" class="chat-log"></div>
+        <form id="chatForm" class="chat-form">
+          <input id="chatInput" type="text" maxlength="200" placeholder="メッセージを入力..." />
+          <button type="submit">送信</button>
+        </form>
+      </div>
+    </section>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="client.js"></script>
+</body>
+</html>
