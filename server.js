@@ -219,9 +219,6 @@ io.on('connection', (socket) => {
     room.winner = null;
     room.passed = false;
     room.status = (room.players[BLACK] && room.players[WHITE]) ? 'playing' : 'waiting';
-    const tmp = room.players[BLACK];
-    room.players[BLACK] = room.players[WHITE];
-    room.players[WHITE] = tmp;
     broadcast(room);
   });
 
