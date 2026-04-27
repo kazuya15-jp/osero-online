@@ -22,9 +22,66 @@ const leaveBtn = document.getElementById('leaveBtn');
 const chatLog = document.getElementById('chatLog');
 const chatForm = document.getElementById('chatForm');
 const chatInput = document.getElementById('chatInput');
+const audioToggleBtn = document.getElementById('audioToggleBtn');
 
 let myColor = null;
 let currentState = null;
+let prevState = null;
+
+const audio = {
+  bgm: new Audio('sounds/bgm.mp3'),
+  place: new Audio('sounds/place.mp3'),
+  turn: new Audio('sounds/turn.mp3'),
+  win: new Audio('sounds/win.mp3'),
+  lose: new Audio('sounds/lose.mp3'),
+};
+audio.bgm.loop = true;
+audio.bgm.volume = 0.3;
+audio.place.volume = 0.6;
+audio.turn.volume = 0.5;
+audio.win.volume = 0.6;
+audio.lose.volume = 0.6;
+Object.values(audio).forEach(a => { a.preload = 'auto'; });
+
+let audioEnabled = localStorage.getItem('osero.audio') !== 'off';
+
+function updateAudioButton() {
+  if (!audioToggleBtn) return;
+  audioToggleBtn.textContent = audioEnabled ? '♪ ON' : '♪ OFF';
+  audioToggleBtn.classList.toggle('audio-off', !audioEnabled);
+}
+updateAudioButton();
+
+function playSE(name) {
+  if (!audioEnabled) return;
+  const a = audio[name];
+  if (!a) return;
+  try {
+    a.currentTime = 0;
+    const p = a.play();
+    if (p && p.catch) p.catch(() => {});
+  } catch {}
+}
+
+function startBGM() {
+  if (!audioEnabled) return;
+  const p = audio.bgm.play();
+  if (p && p.catch) p.catch(() => {});
+}
+
+function stopBGM() {
+  audio.bgm.pause();
+}
+
+if (audioToggleBtn) {
+  audioToggleBtn.addEventListener('click', () => {
+    audioEnabled = !audioEnabled;
+    localStorage.setItem('osero.audio', audioEnabled ? 'on' : 'off');
+    updateAudioButton();
+    if (audioEnabled) startBGM();
+    else stopBGM();
+  });
+}
 
 const cells = [];
 for (let r = 0; r < 8; r++) {
@@ -93,6 +150,7 @@ function enterGame(code, color) {
   lobby.classList.add('hidden');
   game.classList.remove('hidden');
   history.replaceState(null, '', `?room=${code}`);
+  startBGM();
 }
 
 copyBtn.addEventListener('click', async () => {
@@ -134,6 +192,25 @@ function onCellClick(r, c) {
 }
 
 function render(state) {
+  if (prevState) {
+    const lastA = prevState.lastMove;
+    const lastB = state.lastMove;
+    const moveChanged = JSON.stringify(lastA) !== JSON.stringify(lastB);
+    if (moveChanged && lastB) playSE('place');
+    if (prevState.status === 'playing' && state.status === 'playing'
+        && prevState.turn !== state.turn && state.turn === myColor) {
+      playSE('turn');
+    }
+    if (prevState.status !== 'finished' && state.status === 'finished') {
+      stopBGM();
+      if (state.winner === myColor) playSE('win');
+      else if (state.winner && state.winner !== 'draw') playSE('lose');
+    }
+    if (prevState.status === 'finished' && state.status === 'playing') {
+      startBGM();
+    }
+  }
+  prevState = state;
   currentState = state;
   const myTurn = state.turn === myColor;
   const validSet = new Set(state.validMoves);

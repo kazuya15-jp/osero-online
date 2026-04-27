@@ -298,6 +298,15 @@ button.small {
   margin-top: 14px;
 }
 
+.audio-btn {
+  font-family: 'Menlo', 'Consolas', monospace;
+  min-width: 76px;
+}
+
+.audio-btn.audio-off {
+  opacity: 0.5;
+}
+
 .chat {
   margin-top: 16px;
   background: rgba(0, 0, 0, 0.2);
