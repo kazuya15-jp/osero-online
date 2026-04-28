@@ -1,12 +1,34 @@
-const socket = io();
+const TOKEN_KEY = 'osero.token';
+function getToken() { return localStorage.getItem(TOKEN_KEY); }
+function setToken(t) { localStorage.setItem(TOKEN_KEY, t); }
+function clearToken() { localStorage.removeItem(TOKEN_KEY); }
+
+const socket = io({ autoConnect: false, auth: (cb) => cb({ token: getToken() }) });
+
+const authSection = document.getElementById('auth');
+const tabLogin = document.getElementById('tabLogin');
+const tabRegister = document.getElementById('tabRegister');
+const authName = document.getElementById('authName');
+const authPassword = document.getElementById('authPassword');
+const authSubmitBtn = document.getElementById('authSubmitBtn');
+const authError = document.getElementById('authError');
+
+const meNameEl = document.getElementById('meName');
+const meRatingEl = document.getElementById('meRating');
+const meWinsEl = document.getElementById('meWins');
+const meLossesEl = document.getElementById('meLosses');
+const meDrawsEl = document.getElementById('meDraws');
+const meWinRateEl = document.getElementById('meWinRate');
+const logoutBtn = document.getElementById('logoutBtn');
 
 const lobby = document.getElementById('lobby');
 const game = document.getElementById('game');
-const nameInput = document.getElementById('nameInput');
 const codeInput = document.getElementById('codeInput');
 const createBtn = document.getElementById('createBtn');
 const joinBtn = document.getElementById('joinBtn');
 const lobbyError = document.getElementById('lobbyError');
+const ratingBlackEl = document.getElementById('ratingBlack');
+const ratingWhiteEl = document.getElementById('ratingWhite');
 const roomCodeEl = document.getElementById('roomCode');
 const copyBtn = document.getElementById('copyBtn');
 const statusEl = document.getElementById('status');
@@ -162,16 +184,6 @@ function cellAt(r, c) {
   return cells[r * 8 + c];
 }
 
-function savedName() {
-  return localStorage.getItem('osero.name') || '';
-}
-
-function saveName(n) {
-  localStorage.setItem('osero.name', n);
-}
-
-nameInput.value = savedName();
-
 const urlParams = new URLSearchParams(location.search);
 const urlRoom = urlParams.get('room');
 if (urlRoom) codeInput.value = urlRoom.toUpperCase();
@@ -180,23 +192,118 @@ function showError(msg) {
   lobbyError.textContent = msg || '';
 }
 
+let authMode = 'login';
+function setAuthMode(mode) {
+  authMode = mode;
+  tabLogin.classList.toggle('active', mode === 'login');
+  tabRegister.classList.toggle('active', mode === 'register');
+  authSubmitBtn.textContent = mode === 'login' ? 'ログイン' : '新規登録';
+  authPassword.autocomplete = mode === 'login' ? 'current-password' : 'new-password';
+  authError.textContent = '';
+}
+tabLogin.addEventListener('click', () => setAuthMode('login'));
+tabRegister.addEventListener('click', () => setAuthMode('register'));
+
+function showAuth() {
+  authSection.classList.remove('hidden');
+  lobby.classList.add('hidden');
+  game.classList.add('hidden');
+}
+
+function showLobby(user) {
+  authSection.classList.add('hidden');
+  lobby.classList.remove('hidden');
+  game.classList.add('hidden');
+  renderProfile(user);
+}
+
+function renderProfile(user) {
+  if (!user) return;
+  meNameEl.textContent = user.name;
+  meRatingEl.textContent = user.rating;
+  meWinsEl.textContent = user.wins;
+  meLossesEl.textContent = user.losses;
+  meDrawsEl.textContent = user.draws;
+  const total = (user.wins || 0) + (user.losses || 0) + (user.draws || 0);
+  meWinRateEl.textContent = total === 0 ? '—' : `${Math.round((user.wins / total) * 100)}%`;
+}
+
+async function apiPost(path, body) {
+  const res = await fetch(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'リクエスト失敗');
+  return data;
+}
+
+async function apiGet(path) {
+  const res = await fetch(path, { headers: { Authorization: `Bearer ${getToken()}` } });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'リクエスト失敗');
+  return data;
+}
+
+authSubmitBtn.addEventListener('click', async () => {
+  const name = authName.value.trim();
+  const password = authPassword.value;
+  authError.textContent = '';
+  if (!name || !password) {
+    authError.textContent = 'アカウント名とパスワードを入力してください';
+    return;
+  }
+  try {
+    const path = authMode === 'login' ? '/api/login' : '/api/register';
+    const data = await apiPost(path, { name, password });
+    setToken(data.token);
+    authPassword.value = '';
+    onAuthSuccess(data.user);
+  } catch (err) {
+    authError.textContent = err.message || '失敗しました';
+  }
+});
+
+logoutBtn.addEventListener('click', () => {
+  clearToken();
+  socket.disconnect();
+  showAuth();
+});
+
+function onAuthSuccess(user) {
+  showLobby(user);
+  socket.auth = { token: getToken() };
+  if (!socket.connected) socket.connect();
+}
+
+async function bootstrap() {
+  if (!getToken()) {
+    showAuth();
+    return;
+  }
+  try {
+    const data = await apiGet('/api/me');
+    onAuthSuccess(data.user);
+  } catch {
+    clearToken();
+    showAuth();
+  }
+}
+
 createBtn.addEventListener('click', () => {
-  const name = nameInput.value.trim() || 'Player';
-  saveName(name);
   showError('');
-  socket.emit('createRoom', { name }, (res) => {
+  socket.emit('createRoom', {}, (res) => {
     if (!res || !res.ok) return showError(res?.error || '作成に失敗しました');
     enterGame(res.code, res.color);
   });
 });
 
 joinBtn.addEventListener('click', () => {
-  const name = nameInput.value.trim() || 'Player';
   const code = codeInput.value.trim().toUpperCase();
   if (!code) return showError('ルームコードを入力してください');
-  saveName(name);
   showError('');
-  socket.emit('joinRoom', { code, name }, (res) => {
+  socket.emit('joinRoom', { code }, (res) => {
     if (!res || !res.ok) return showError(res?.error || '参加に失敗しました');
     enterGame(res.code, res.color);
   });
@@ -209,6 +316,7 @@ codeInput.addEventListener('input', () => {
 function enterGame(code, color) {
   myColor = color;
   roomCodeEl.textContent = code;
+  authSection.classList.add('hidden');
   lobby.classList.add('hidden');
   game.classList.remove('hidden');
   history.replaceState(null, '', `?room=${code}`);
@@ -312,6 +420,8 @@ function render(state) {
   countWhiteEl.textContent = state.counts.white;
   nameBlackEl.textContent = state.players.B?.name ?? '待機中…';
   nameWhiteEl.textContent = state.players.W?.name ?? '待機中…';
+  ratingBlackEl.textContent = state.players.B?.rating != null ? `R${state.players.B.rating}` : '';
+  ratingWhiteEl.textContent = state.players.W?.rating != null ? `R${state.players.W.rating}` : '';
 
   scoreBlackEl.classList.toggle('active', state.status === 'playing' && state.turn === 'B');
   scoreWhiteEl.classList.toggle('active', state.status === 'playing' && state.turn === 'W');
@@ -381,10 +491,31 @@ socket.on('chat', ({ color, name, message }) => {
   chatLog.scrollTop = chatLog.scrollHeight;
 });
 
-socket.on('connect_error', () => {
+socket.on('connect_error', (err) => {
+  const msg = err && err.message;
+  if (msg === 'AUTH_REQUIRED' || msg === 'AUTH_INVALID' || msg === 'AUTH_FAILED') {
+    clearToken();
+    showAuth();
+    authError.textContent = 'セッションが無効です。再度ログインしてください。';
+    return;
+  }
   showError('サーバーに接続できません');
 });
 
 socket.on('disconnect', () => {
   if (statusEl) statusEl.textContent = '接続が切れました…再接続中';
 });
+
+function refreshProfile() {
+  apiGet('/api/me').then((data) => renderProfile(data.user)).catch(() => {});
+}
+
+let prevStatus = null;
+socket.on('state', (state) => {
+  if (prevStatus !== 'finished' && state.status === 'finished') {
+    refreshProfile();
+  }
+  prevStatus = state.status;
+});
+
+bootstrap();

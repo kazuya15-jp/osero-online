@@ -13,10 +13,38 @@
       <img src="othello.png" alt="オセロ盤" class="hero-image" />
     </header>
 
-    <section id="lobby" class="card">
+    <section id="auth" class="card hidden">
+      <div class="auth-tabs">
+        <button id="tabLogin" class="auth-tab active" type="button">ログイン</button>
+        <button id="tabRegister" class="auth-tab" type="button">新規登録</button>
+      </div>
       <div class="row">
-        <label>ニックネーム</label>
-        <input id="nameInput" type="text" maxlength="20" placeholder="あなたの名前" />
+        <label>アカウント名</label>
+        <input id="authName" type="text" maxlength="20" autocomplete="username" placeholder="半角英数字 3〜20" />
+      </div>
+      <div class="row">
+        <label>パスワード</label>
+        <input id="authPassword" type="password" maxlength="100" autocomplete="current-password" placeholder="6文字以上" />
+      </div>
+      <div class="actions">
+        <button id="authSubmitBtn" class="primary">ログイン</button>
+      </div>
+      <p id="authError" class="error"></p>
+    </section>
+
+    <section id="lobby" class="card hidden">
+      <div id="profile" class="profile">
+        <div class="profile-name">
+          <strong id="meName">—</strong>
+          <button id="logoutBtn" class="small">ログアウト</button>
+        </div>
+        <div class="profile-stats">
+          <div><span class="stat-label">レーティング</span><span id="meRating" class="stat-value">—</span></div>
+          <div><span class="stat-label">勝</span><span id="meWins" class="stat-value">—</span></div>
+          <div><span class="stat-label">負</span><span id="meLosses" class="stat-value">—</span></div>
+          <div><span class="stat-label">分</span><span id="meDraws" class="stat-value">—</span></div>
+          <div><span class="stat-label">勝率</span><span id="meWinRate" class="stat-value">—</span></div>
+        </div>
       </div>
       <div class="actions">
         <button id="createBtn" class="primary">ルームを作成</button>
@@ -44,11 +72,13 @@
           <div class="score black" id="scoreBlack">
             <span class="disc-mini black"></span>
             <span class="player-name" id="nameBlack">—</span>
+            <span class="player-rating" id="ratingBlack"></span>
             <span class="score-num" id="countBlack">2</span>
           </div>
           <div class="score white" id="scoreWhite">
             <span class="disc-mini white"></span>
             <span class="player-name" id="nameWhite">—</span>
+            <span class="player-rating" id="ratingWhite"></span>
             <span class="score-num" id="countWhite">2</span>
           </div>
         </div>
