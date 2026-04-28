@@ -1,7 +1,7 @@
 {
-  "name": "osero-online",
+  "name": "othello-game",
   "version": "1.0.0",
-  "description": "Play Othello online with friends",
+  "description": "Othello Game - play online with friends",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
